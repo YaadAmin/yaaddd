@@ -1,0 +1,163 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Speech.Recognition;
+using System.Speech.Synthesis;
+using System.IO;
+using System.IO.Ports;
+
+
+namespace Speechrecog_Assistant
+{
+	public partial class Form1 : Form
+	{
+		SpeechRecognitionEngine _recognizer = new SpeechRecognitionEngine(); // engine gedeclareerd en naam gegeven, dit is voor de spraakcommando's
+		SpeechSynthesizer Alexa = new SpeechSynthesizer(); // synthesizer gedeclareerd en de naam Alexa gegeven (originele naam he?)
+		SpeechRecognitionEngine startlistening = new SpeechRecognitionEngine();// engine nummer 2 om alleen te luisteren of er startlistening wordt gezegd
+		DateTime TimeNow = DateTime.Now; // Dit wordt later gebruikt om de huidige tijd op te vragen
+
+
+		public Form1()
+		{
+			InitializeComponent();// standaardcode
+		}
+
+		private void Form1_Load(object sender, EventArgs e)
+		{
+			_recognizer.SetInputToDefaultAudioDevice(); // audiodevice is op default gezet omdat de pc geen gebruik maakt van externe microfoons
+			_recognizer.LoadGrammarAsync(new Grammar(new GrammarBuilder(new Choices(File.ReadAllLines(@"Woordenlijst.txt" ))))); // grammatica toegevoegd en woordenlijst toegevoegd
+			_recognizer.SpeechRecognized += new EventHandler<SpeechRecognizedEventArgs>(Default_SpeechRecognized);// eventhandler gemaakt voor wanneer spraak is herkend
+			_recognizer.SpeechDetected += new EventHandler<SpeechDetectedEventArgs>(_recognizer_SpeechRecognized);// eventhandler gemaakt voor wanneer spraak is herkend
+			_recognizer.RecognizeAsync(RecognizeMode.Multiple);// hierdoor worden meerdere woorden herkend in plaats van alleen één woord
+
+			startlistening.SetInputToDefaultAudioDevice(); // audio device van deze engine ook op default gezet
+			startlistening.LoadGrammarAsync(new Grammar(new GrammarBuilder(new Choices(File.ReadAllLines(@"Woordenlijst.txt")))));// hier ook grammatica en woordenlijst aan toegevoegd
+			startlistening.SpeechRecognized += new EventHandler<SpeechRecognizedEventArgs>(startlistening_SpeechRecognized); // eventhandler gemaakt voor wanneer spraak is herkend
+		}
+
+
+		private void Default_SpeechRecognized(object sender, SpeechRecognizedEventArgs e)
+		{
+			string speech = e.Result.Text; // de spraak wordt omgezet in text en vervolgens wordt dit in 'speech' geplaatst. 
+			if (speech == "Knife") // 
+			{
+				try
+				{
+					SerialPort sp = new SerialPort("COM10", 9600); // Serial COM poort definieren
+					Alexa.SpeakAsync("I am grabbing object one"); // Alexa zegt het volgende zinnetje
+					sp.Open();// COM poort gaat open
+					sp.Write("2");// "2" wordt gestuurd naar de arduino
+					sp.Close();// Com poort gaat weer dicht
+				}
+				catch
+				{
+					MessageBox.Show("Er is een fout opgetreden, herhaal het woord opnieuw of controleer op fouten in het systeem"); // Als er wat mis gaat dan wordt een messagebox getoond op de scherm dat aangeeft dat er een fout is. (aLS het niet is aangesloten met de arduino krijg dit telkens te zien)
+				}
+			}
+			if (speech == "Scissors")
+			{
+				try
+				{
+					SerialPort sp = new SerialPort("COM10", 9600);
+					Alexa.SpeakAsync("I am grabbing object two");
+					sp.Open();
+					sp.Write("1");
+					sp.Close();
+				}
+				catch
+				{
+					MessageBox.Show("Er is een fout opgetreden, herhaal het woord opnieuw of controleer op fouten in het systeem");
+				}
+
+			}
+			if (speech == "Corona")
+			{
+					Alexa.SpeakAsync("Fuck that shit");
+			}
+			if (speech == "What time is it")
+			{
+				Alexa.SpeakAsync(DateTime.Now.ToString("h mm tt"));// Met dit stukje code zal het programma zeggen hoelaat het precies is. 
+			}
+			if (speech == "Return knife")
+			{
+				try
+				{
+					SerialPort sp = new SerialPort("COM10", 9600);
+					Alexa.SpeakAsync("Returning object one");
+					sp.Open();
+					sp.Write("4");
+					sp.Close();
+				}
+				catch
+				{
+					MessageBox.Show("Er is een fout opgetreden, herhaal het woord opnieuw of controleer op fouten in het systeem");
+				}
+			}
+			if (speech == "Return scissors")
+			{
+				try
+				{
+					SerialPort sp = new SerialPort("COM10", 9600);
+					Alexa.SpeakAsync("Returning object two");
+					sp.Open();
+					sp.Write("3");
+					sp.Close();
+				}
+				catch
+				{
+					MessageBox.Show("Er is een fout opgetreden, herhaal het woord opnieuw of controleer op fouten in het systeem");
+				}
+			}
+
+			if (speech == "Stop listening")
+			{
+				Alexa.SpeakAsync("If you need me just ask");
+				_recognizer.RecognizeAsyncCancel();// spraakherkenning wordt op stop gezet, dus je kan elke woord zeggen maar het zal niks herkennen
+				startlistening.RecognizeAsync(RecognizeMode.Multiple);// Nu gaat de andere engine aan om te kijken of je "start listening" zegt
+			}
+			if (speech == "Show commands") 
+			{
+				string[] commands = (File.ReadAllLines(@"Woordenlijst.txt")); // de woorden in de woordenlijst worden toegevoegd aan string commands
+				LstCommands.Items.Clear(); // // list box wordt leeggemaakt
+				LstCommands.SelectionMode = SelectionMode.None;// hierdoor kun je niet op de commands klikken, ze verschijnen maar je kunt er niks mee doen
+				LstCommands.Visible = true;// de listbox wordt nu op visible gezet, in de designform was dit op invisible gezet
+				foreach (string command in commands)
+				{
+					LstCommands.Items.Add(command);// elke string in commands wordt nu toegevoegd aan de listbox 
+				}
+			}
+			if (speech == "Hide commands")
+			{
+				LstCommands.Visible = false; // de commando's worden weer weggehaald van het scherm 
+			}
+			if (speech == "Operation is done")
+			{
+				Alexa.SpeakAsync("Good work mate");
+				LstCommands.Visible = false; // commando's worden weer weggehaald als ze er nog stonden
+				Meme1.Visible = true; // er verschijnt een hilarische meme op het scherm 
+			}
+		}
+		private void _recognizer_SpeechRecognized(object sender, SpeechDetectedEventArgs e)
+		{
+		}
+
+		private void startlistening_SpeechRecognized(object sender, SpeechRecognizedEventArgs e)
+		{
+			string speech = e.Result.Text;
+			if (speech == "Start listening")
+			{
+				startlistening.RecognizeAsyncCancel();// deze engine wordt weer uitgezet
+				Alexa.SpeakAsync("Yes, i am here");	
+				_recognizer.RecognizeAsync(RecognizeMode.Multiple); // De engine om de commando's te herkennen wordt weer aangezet
+			}
+		}
+		}
+	}
+
+
